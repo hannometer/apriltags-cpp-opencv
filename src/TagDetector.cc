@@ -424,7 +424,7 @@ namespace AprilTags {
   vector<Segment*> tmp(5);
   for (unsigned int i = 0; i < segments.size(); i++) {
     tmp[0] = &segments[i];
-    Quad::search(fimOrig, tmp, segments[i], 0, quads, opticalCenter);
+    Quad::search(fim, tmp, segments[i], 0, quads, opticalCenter);
   }
 
 #ifdef DEBUG_APRIL
