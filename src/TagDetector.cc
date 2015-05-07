@@ -156,8 +156,7 @@ namespace AprilTags {
   if (sigma > 0)
     cv::GaussianBlur( fimOrig, fim, cv::Size ( 3, 3 ), sigma );
   else
-    fimOrig.copyTo( fim );
-
+    fim = fimOrig; // no deep copy necessary!
 
   //================================================================
   // Step two: Compute the local gradient. We store the direction and magnitude.
