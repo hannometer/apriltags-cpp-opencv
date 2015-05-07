@@ -35,6 +35,47 @@ using namespace std;
 
 namespace AprilTags {
 
+  cv::Mat TagDetector::convertImage( const cv::Mat& image ) const
+  {
+    cv::Mat ret( image.rows, image.cols, CV_32FC1 );
+    switch ( image.type() )
+    {
+      case CV_8UC1: // Grayscale image
+      {
+        image.convertTo( ret, CV_32FC1, 1.0 / 255., 0 );
+      }
+      break;
+      case CV_8UC3: // RGB
+      {
+        float scale = 1.0f / 255.f;
+        for ( int r = 0; r < image.rows; r++ )
+        {
+          const cv::Vec3b* row_img = image.ptr< cv::Vec3b >( r );
+          float* row_ret = ret.ptr< float >( r );
+          for ( int c = 0; c < image.cols; c++ )
+            row_ret[ c ] = row_img[c][1] * scale;
+        }
+      }
+      break;
+      case CV_8UC4: // RGBA
+      {
+        float scale = 1.0f / 255.f;
+        for ( int r = 0; r < image.rows; r++ )
+        {
+          const cv::Vec4b* row_img = image.ptr< cv::Vec4b >( r );
+          float* row_ret = ret.ptr< float >( r );
+          for ( int c = 0; c < image.cols; c++ )
+            row_ret[ c ] = row_img[c][1] * scale;
+        }
+      }
+      break;
+      default:
+        // ToDo: Error Message!
+        ret = cv::Mat();
+    }
+    return ret;
+  }
+
   std::vector<TagDetection> TagDetector::extractTags(const cv::Mat& image) {
 
     // convert to internal AprilTags image (todo: slow, change internally to OpenCV)

@@ -21,6 +21,11 @@ public:
 	TagDetector(const TagCodes& tagCodes) : thisTagFamily(tagCodes) {}
 	
 	std::vector<TagDetection> extractTags(const cv::Mat& image);
+
+protected:
+  //! Convert image to float image, scaling to [0,1]
+  //! In the case of RGB(A) images, use the green color channel
+  cv::Mat convertImage( const cv::Mat& image ) const;
 	
 };
 
