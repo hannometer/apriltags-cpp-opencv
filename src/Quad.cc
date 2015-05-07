@@ -1,6 +1,5 @@
 #include <Eigen/Dense>
 
-#include "AprilTags/FloatImage.h"
 #include "AprilTags/MathUtil.h"
 #include "AprilTags/GLine2D.h"
 #include "AprilTags/Quad.h"
@@ -49,7 +48,7 @@ std::pair<float,float> Quad::interpolate01(float x, float y) {
   return interpolate(2*x-1, 2*y-1);
 }
 
-void Quad::search(const FloatImage& fImage, std::vector<Segment*>& path,
+void Quad::search(const cv::Mat& fImage, std::vector<Segment*>& path,
                   Segment& parent, int depth, std::vector<Quad>& quads,
                   const std::pair<float,float>& opticalCenter) {
   // cout << "Searching segment " << parent.getId() << ", depth=" << depth << ", #children=" << parent.children.size() << endl;

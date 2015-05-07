@@ -81,28 +81,21 @@ namespace AprilTags {
     // convert to internal AprilTags image (todo: slow, change internally to OpenCV)
     int width = image.cols;
     int height = image.rows;
-    AprilTags::FloatImage fimOrig(width, height);
-    int i = 0;
-    for (int y=0; y<height; y++) {
-      for (int x=0; x<width; x++) {
-        fimOrig.set(x, y, image.data[i]/255.);
-        i++;
-      }
-    }
+    cv::Mat fimOrig = convertImage( image );
     std::pair<int,int> opticalCenter(width/2, height/2);
 
 #ifdef DEBUG_APRIL
 #if 0
   { // debug - write
-    int height_ = fimOrig.getHeight();
-    int width_  = fimOrig.getWidth();
+    int height_ = fimOrig.rows;
+    int width_  = fimOrig.cols;
     cv::Mat image(height_, width_, CV_8UC3);
     {
       for (int y=0; y<height_; y++) {
         for (int x=0; x<width_; x++) {
           cv::Vec3b v;
-          //        float vf = fimMag.get(x,y);
-          float vf = fimOrig.get(x,y);
+          //        float vf = fimMag.at<float>(y,x);
+          float vf = fimOrig.at<float>(y,x);
           int val = (int)(vf * 255.);
           if ((val & 0xffff00) != 0) {printf("problem... %i\n", val);}
           for (int k=0; k<3; k++) {
@@ -120,8 +113,8 @@ namespace AprilTags {
   { // debug - read
 
     cv::Mat image = cv::imread("test.bmp");
-    int height_ = fimOrig.getHeight();
-    int width_  = fimOrig.getWidth();
+    int height_ = fimOrig.rows;
+    int width_  = fimOrig.cols;
     {
       for (int y=0; y<height_; y++) {
         for (int x=0; x<width_; x++) {
@@ -138,8 +131,8 @@ namespace AprilTags {
   //================================================================
   // Step one: preprocess image (convert to grayscale) and low pass if necessary
 
-  FloatImage fim = fimOrig;
-  
+  cv::Mat fim;
+
   //! Gaussian smoothing kernel applied to image (0 == no filter).
   /*! Used when sampling bits. Filtering is a good idea in cases
    * where A) a cheap camera is introducing artifical sharpening, B)
@@ -159,11 +152,12 @@ namespace AprilTags {
    */
   float segSigma = 0.8f;
 
-  if (sigma > 0) {
-    int filtsz = ((int) max(3.0f, 3*sigma)) | 1;
-    std::vector<float> filt = Gaussian::makeGaussianFilter(sigma, filtsz);
-    fim.filterFactoredCentered(filt, filt);
-  }
+
+  if (sigma > 0)
+    cv::GaussianBlur( fimOrig, fim, cv::Size ( 3, 3 ), sigma );
+  else
+    fimOrig.copyTo( fim );
+
 
   //================================================================
   // Step two: Compute the local gradient. We store the direction and magnitude.
@@ -171,30 +165,26 @@ namespace AprilTags {
   // break up segments, causing us to miss Quads. It is useful to do a Gaussian
   // low pass on this step even if we don't want it for encoding.
 
-  FloatImage fimSeg;
+  cv::Mat fimSeg;
   if (segSigma > 0) {
     if (segSigma == sigma) {
-      fimSeg = fim;
+      fim.copyTo( fimSeg );
     } else {
       // blur anew
-      int filtsz = ((int) max(3.0f, 3*segSigma)) | 1;
-      std::vector<float> filt = Gaussian::makeGaussianFilter(segSigma, filtsz);
-      fimSeg = fimOrig;
-      fimSeg.filterFactoredCentered(filt, filt);
+      cv::GaussianBlur( fimOrig, fimSeg, cv::Size ( 3, 3 ), segSigma );
     }
   } else {
-    fimSeg = fimOrig;
+    fim.copyTo( fimSeg );
   }
 
-  FloatImage fimTheta(fimSeg.getWidth(), fimSeg.getHeight());
-  FloatImage fimMag(fimSeg.getWidth(), fimSeg.getHeight());
-  
+  cv::Mat fimTheta( fimSeg.rows, fimSeg.cols, fimSeg.type() );
+  cv::Mat fimMag( fimSeg.rows, fimSeg.cols, fimSeg.type() );
 
   #pragma omp parallel for
-  for (int y = 1; y < fimSeg.getHeight()-1; y++) {
-    for (int x = 1; x < fimSeg.getWidth()-1; x++) {
-      float Ix = fimSeg.get(x+1, y) - fimSeg.get(x-1, y);
-      float Iy = fimSeg.get(x, y+1) - fimSeg.get(x, y-1);
+  for (int y = 1; y < fimSeg.rows-1; y++) {
+    for (int x = 1; x < fimSeg.cols-1; x++) {
+      float Ix = fimSeg.at< float >(y, x+1) - fimSeg.at< float >(y, x-1);
+      float Iy = fimSeg.at< float >(y+1, x) - fimSeg.at< float >(y-1, x);
 
       float mag = Ix*Ix + Iy*Iy;
 #if 0 // kaess: fast version, but maybe less accurate?
@@ -203,21 +193,21 @@ namespace AprilTags {
       float theta = atan2(Iy, Ix);
 #endif
       
-      fimTheta.set(x, y, theta);
-      fimMag.set(x, y, mag);
+      fimTheta.at< float >( y, x ) = theta;
+      fimMag.at< float >( y, x ) = mag;
     }
   }
 
 #ifdef DEBUG_APRIL
-  int height_ = fimSeg.getHeight();
-  int width_  = fimSeg.getWidth();
+  int height_ = fimSeg.rows;
+  int width_  = fimSeg.cols;
   cv::Mat image(height_, width_, CV_8UC3);
   {
     for (int y=0; y<height_; y++) {
       for (int x=0; x<width_; x++) {
         cv::Vec3b v;
-        //        float vf = fimMag.get(x,y);
-        float vf = fimOrig.get(x,y);
+        //        float vf = fimMag.at<float>(y,x);
+        float vf = fimOrig.at<float>(y,x);
         int val = (int)(vf * 255.);
         if ((val & 0xffff00) != 0) {printf("problem... %i\n", val);}
         for (int k=0; k<3; k++) {
@@ -233,7 +223,7 @@ namespace AprilTags {
   // Step three. Extract edges by grouping pixels with similar
   // thetas together. This is a greedy algorithm: we start with
   // the most similar pixels.  We use 4-connectivity.
-  UnionFindSimple uf(fimSeg.getWidth()*fimSeg.getHeight());
+  UnionFindSimple uf(fimSeg.rows*fimSeg.cols);
   
   vector<Edge> edges(width*height*4);
   size_t nEdges = 0;
@@ -254,13 +244,13 @@ namespace AprilTags {
     for (int y = 0; y+1 < height; y++) {
       for (int x = 0; x+1 < width; x++) {
                                   
-        float mag0 = fimMag.get(x,y);
+        float mag0 = fimMag.at<float>(y,x);
         if (mag0 < Edge::minMag)
           continue;
         mmax[y*width+x] = mag0;
         mmin[y*width+x] = mag0;
                                   
-        float theta0 = fimTheta.get(x,y);
+        float theta0 = fimTheta.at<float>(y,x);
         tmin[y*width+x] = theta0;
         tmax[y*width+x] = theta0;
                                   
@@ -282,12 +272,12 @@ namespace AprilTags {
   // We will soon fit lines (segments) to these points.
 
   map<int, vector<XYWeight> > clusters;
-  for (int y = 0; y+1 < fimSeg.getHeight(); y++) {
-    for (int x = 0; x+1 < fimSeg.getWidth(); x++) {
-      if (uf.getSetSize(y*fimSeg.getWidth()+x) < Segment::minimumSegmentSize)
+  for (int y = 0; y+1 < fimSeg.rows; y++) {
+    for (int x = 0; x+1 < fimSeg.cols; x++) {
+      if (uf.getSetSize(y*fimSeg.cols+x) < Segment::minimumSegmentSize)
 	continue;
 
-      int rep = (int) uf.getRepresentative(y*fimSeg.getWidth()+x);
+      int rep = (int) uf.getRepresentative(y*fimSeg.cols+x);
      
       map<int, vector<XYWeight> >::iterator it = clusters.find(rep);
       if ( it == clusters.end() ) {
@@ -295,7 +285,7 @@ namespace AprilTags {
 	it = clusters.find(rep);
       }
       vector<XYWeight> &points = it->second;
-      points.push_back(XYWeight(x,y,fimMag.get(x,y)));
+      points.push_back(XYWeight(x,y,fimMag.at<float>(y,x)));
     }
   }
 
@@ -332,8 +322,8 @@ namespace AprilTags {
     for (unsigned int i = 0; i < points.size(); i++) {
       XYWeight xyw = points[i];
       
-      float theta = fimTheta.get((int) xyw.x, (int) xyw.y);
-      float mag = fimMag.get((int) xyw.x, (int) xyw.y);
+      float theta = fimTheta.at<float>((int) xyw.y, (int) xyw.x);
+      float mag = fimMag.at<float>((int) xyw.y, (int) xyw.x);
 
       // err *should* be +M_PI/2 for the correct winding, but if we
       // got the wrong winding, it'll be around -M_PI/2.
@@ -486,7 +476,7 @@ namespace AprilTags {
 	int iry = (int) (pxy.second + 0.5);
 	if (irx < 0 || irx >= width || iry < 0 || iry >= height)
 	  continue;
-	float v = fim.get(irx, iry);
+  float v = fim.at<float>(iry, irx);
 	if (iy == -1 || iy == dd || ix == -1 || ix == dd)
 	  whiteModel.addObservation(x, y, v);
 	else if (iy == 0 || iy == (dd-1) || ix == 0 || ix == (dd-1))
@@ -509,7 +499,7 @@ namespace AprilTags {
 	  continue;
 	}
 	float threshold = (blackModel.interpolate(x,y) + whiteModel.interpolate(x,y)) * 0.5f;
-	float v = fim.get(irx, iry);
+  float v = fim.at<float>(iry, irx);
 	tagCode = tagCode << 1;
 	if ( v > threshold)
 	  tagCode |= 1;
