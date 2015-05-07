@@ -187,7 +187,7 @@ namespace AprilTags {
       float Iy = fimSeg.at< float >(y+1, x) - fimSeg.at< float >(y-1, x);
 
       float mag = Ix*Ix + Iy*Iy;
-#if 0 // kaess: fast version, but maybe less accurate?
+#if 1 // kaess: fast version, but maybe less accurate?
       float theta = MathUtil::fast_atan2(Iy, Ix);
 #else
       float theta = atan2(Iy, Ix);
